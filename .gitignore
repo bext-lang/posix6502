@@ -1,3 +1,5 @@
 nob
 nob.old
 build/
+.zig-cache
+zig-out/bin
