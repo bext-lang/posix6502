@@ -5,6 +5,7 @@
 #define FLAG_IMPLEMENTATION
 #include "flag.h"
 
+// Forward declarations for definitions from fake6502.c
 void reset6502();
 void step6502();
 void rts();
@@ -33,25 +34,58 @@ void load_rom_at(String_Builder rom, uint16_t offset) {
     }
 }
 
+void usage(void)
+{
+    fprintf(stderr, "posix6502 - a 6502 emulator in POSIX environment. Based on fake6502 by Mike Chambers.\n");
+    fprintf(stderr, "Usage: %s [OPTIONS] <rom>\n", flag_program_name());
+    fprintf(stderr, "OPTIONS:\n");
+    flag_print_options(stderr);
+}
+
 int main(int argc, char **argv)
 {
-    const char *program_name = shift(argv, argc);
+    // TODO: it would be nice if the default value of -load-offset was displayed in hex in the -help message
+    uint64_t *load_offset = flag_uint64("load-offset", DEFAULT_LOAD_OFFSET, "Offset in the memory to load the rom at");
+    bool *help = flag_bool("help", false, "Display this help message");
+    const char *rom_path = NULL;
 
-    if (argc <= 0) {
-        nob_log(ERROR, "Usage: %s <rom>", program_name);
-        nob_log(ERROR, "No rom path is provided");
-        return 1;
+    while (argc > 0) {
+        if (!flag_parse(argc, argv)) {
+            usage();
+            flag_print_error(stderr);
+            return 1;
+        }
+        argc = flag_rest_argc();
+        argv = flag_rest_argv();
+        if (argc > 0) {
+            if (rom_path == NULL) {
+                rom_path = shift(argv, argc);
+            } else {
+                usage();
+                fprintf(stderr, "ERROR: you can load and execute only one rom at a time\n");
+                return 1;
+            }
+        }
     }
 
-    const char *rom_path = shift(argv, argc);
+    if (*help) {
+        usage();
+        return 0;
+    }
+
+    if (rom_path == 0) {
+        usage();
+        fprintf(stderr, "ERROR: no rom is provided\n");
+        return 1;
+    }
 
     String_Builder rom = {0};
     if (!read_entire_file(rom_path, &rom)) return 1;
 
-    load_rom_at(rom, DEFAULT_LOAD_OFFSET);
+    load_rom_at(rom, *load_offset);
 
     reset6502();
-    pc = DEFAULT_LOAD_OFFSET;
+    pc = *load_offset;
 
     // set reset to $0000 to exit on reset
     MEMORY[0xFFFC] = 0;
