@@ -3,6 +3,7 @@
 #define NOB_STRIP_PREFIX
 #include "nob.h"
 #define FLAG_IMPLEMENTATION
+#define FLAG_PUSH_DASH_DASH_BACK
 #include "flag.h"
 
 // Forward declarations for definitions from fake6502.c
@@ -37,10 +38,16 @@ void load_rom_at(String_Builder rom, uint16_t offset) {
 void usage(void)
 {
     fprintf(stderr, "posix6502 - a 6502 emulator in POSIX environment. Based on fake6502 by Mike Chambers.\n");
-    fprintf(stderr, "Usage: %s [OPTIONS] <rom>\n", flag_program_name());
+    fprintf(stderr, "Usage: %s [OPTIONS] <rom> [--] [run arguments]\n", flag_program_name());
     fprintf(stderr, "OPTIONS:\n");
     flag_print_options(stderr);
 }
+
+typedef struct {
+    char **items;
+    size_t count;
+    size_t capacity;
+} Run_Args;
 
 int main(int argc, char **argv)
 {
@@ -48,6 +55,7 @@ int main(int argc, char **argv)
     uint64_t *load_offset = flag_uint64("load-offset", DEFAULT_LOAD_OFFSET, "Offset in the memory to load the rom at");
     bool *help = flag_bool("help", false, "Display this help message");
     const char *rom_path = NULL;
+    Run_Args run_args = {0};
 
     while (argc > 0) {
         if (!flag_parse(argc, argv)) {
@@ -58,12 +66,19 @@ int main(int argc, char **argv)
         argc = flag_rest_argc();
         argv = flag_rest_argv();
         if (argc > 0) {
-            if (rom_path == NULL) {
-                rom_path = shift(argv, argc);
+            if (strcmp(*argv, "--") == 0) {
+                UNUSED(shift(argv, argc)); // skip the dash-dash
+                while (argc > 0) {
+                    da_append(&run_args, shift(argv, argc));
+                }
             } else {
-                usage();
-                fprintf(stderr, "ERROR: you can load and execute only one rom at a time\n");
-                return 1;
+                if (rom_path == NULL) {
+                    rom_path = shift(argv, argc);
+                } else {
+                    usage();
+                    fprintf(stderr, "ERROR: you can load and execute only one rom at a time\n");
+                    return 1;
+                }
             }
         }
     }
@@ -77,6 +92,10 @@ int main(int argc, char **argv)
         usage();
         fprintf(stderr, "ERROR: no rom is provided\n");
         return 1;
+    }
+
+    if (run_args.count > 0) {
+        TODO("passing run arguments to the program is not implemented yet");
     }
 
     String_Builder rom = {0};
